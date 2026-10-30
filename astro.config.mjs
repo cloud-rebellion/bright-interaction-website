@@ -1,5 +1,4 @@
 import { defineConfig } from 'astro/config';
-import tailwind from '@astrojs/tailwind';
 import sitemap from '@astrojs/sitemap';
 import { readFileSync } from 'fs';
 
@@ -50,7 +49,6 @@ export default defineConfig({
     '/case-studies': '/',
   },
   integrations: [
-    tailwind(),
     sitemap({
       i18n: {
         defaultLocale: 'en',
