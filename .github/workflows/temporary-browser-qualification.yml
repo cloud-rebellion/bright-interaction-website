@@ -1,0 +1,48 @@
+name: temporary-public-browser-qualification
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: temporary-public-browser-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  exact-public-artifact-comparison:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.4.4"
+      - name: Compare the two pinned public static artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_SCRATCH_DIR: ${{ runner.temp }}/public-browser-qualification
+        run: |
+          export CHROME_PATH="$(command -v google-chrome || command -v google-chrome-stable)"
+          test -n "$CHROME_PATH"
+          mkdir "$BUILD_SCRATCH_DIR"
+          python3 scripts/qualify-static-artifacts.py
+      - name: Bound qualification evidence
+        id: evidence_bound
+        if: always()
+        run: |
+          test -s "$RUNNER_TEMP/public-browser-qualification/browser-result.json"
+          test "$(find "$RUNNER_TEMP/public-browser-qualification" -maxdepth 1 -name '*.png' -type f | wc -l)" -eq 8
+          test "$(du -ck "$RUNNER_TEMP/public-browser-qualification/"*.png "$RUNNER_TEMP/public-browser-qualification/browser-result.json" | tail -1 | cut -f1)" -le 6144
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always() && steps.evidence_bound.outcome == 'success'
+        with:
+          name: public-browser-qualification-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/public-browser-qualification/*.png
+            ${{ runner.temp }}/public-browser-qualification/browser-result.json
+          retention-days: 1
+          if-no-files-found: error
